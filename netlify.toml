@@ -2,6 +2,10 @@
   publish = "public"
   functions = "netlify/functions"
 
+[build.environment]
+  # ADMIN_EMAIL is the public contact address displayed on the site, so it is not a secret
+  SECRETS_SCAN_OMIT_KEYS = "ADMIN_EMAIL"
+
 [functions]
   node_bundler = "esbuild"
 
