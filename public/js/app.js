@@ -141,8 +141,21 @@
 
   // Handle hash routing
   function handleRoute() {
-    const hash = window.location.hash.slice(1) || 'home';
-    navigateTo(hash);
+    const rawHash = (window.location.hash || '').replace(/^#/, '');
+    if (!rawHash || rawHash === 'home') {
+      navigateTo('home');
+      return;
+    }
+
+    if (pages.includes(rawHash)) {
+      navigateTo(rawHash);
+    } else {
+      // In-page element anchor (e.g. github-showcase)
+      const targetEl = document.getElementById(rawHash);
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
   }
 
   // Initialize on load
@@ -739,12 +752,13 @@
   // Violin Audio Synthesizer (Web Audio API)
   // ============================
   let audioCtx = null;
+  let audioUnlocked = false;
 
   function initViolinAudio() {
     const board = document.getElementById('violin-board');
     if (!board) return;
 
-    function getAudioContext() {
+    function unlockAudio() {
       if (!audioCtx) {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (AudioContext) {
@@ -752,47 +766,74 @@
         }
       }
       if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
+        audioCtx.resume().then(() => {
+          audioUnlocked = true;
+        }).catch(() => {});
+      } else if (audioCtx && audioCtx.state === 'running') {
+        audioUnlocked = true;
       }
-      return audioCtx;
     }
 
-    function playNote(freq, itemEl) {
-      const ctx = getAudioContext();
-      if (!ctx) return;
+    // Unlock audio context on first explicit user interaction
+    window.addEventListener('pointerdown', unlockAudio, { once: true, passive: true });
+    window.addEventListener('keydown', unlockAudio, { once: true, passive: true });
 
-      const now = ctx.currentTime;
+    function playNote(freq, itemEl) {
+      try {
+        unlockAudio();
+        if (!audioCtx) return;
+
+        // Animate the physical string regardless of audio state
+        itemEl.classList.remove('string-vibrating');
+        void itemEl.offsetWidth; // trigger reflow
+        itemEl.classList.add('string-vibrating');
+        setTimeout(() => itemEl.classList.remove('string-vibrating'), 380);
+
+        if (audioCtx.state !== 'running') {
+          audioCtx.resume().then(() => playOscillators(freq)).catch(() => {});
+          return;
+        }
+
+        playOscillators(freq);
+      } catch {
+        // Silently handle any browser audio constraints
+      }
+    }
+
+    function playOscillators(freq) {
+      if (!audioCtx || audioCtx.state !== 'running') return;
+      const now = audioCtx.currentTime;
 
       // Master gain for this note
-      const masterGain = ctx.createGain();
+      const masterGain = audioCtx.createGain();
       masterGain.gain.setValueAtTime(0, now);
       masterGain.gain.linearRampToValueAtTime(0.28, now + 0.02);
       masterGain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
 
       // Lowpass filter modeling wood body resonance
-      const filter = ctx.createBiquadFilter();
+      const filter = audioCtx.createBiquadFilter();
       filter.type = 'lowpass';
       filter.frequency.setValueAtTime(2200, now);
       filter.Q.setValueAtTime(1.8, now);
 
       // Fundamental harmonic (Sawtooth for warm string texture)
-      const osc1 = ctx.createOscillator();
+      const osc1 = audioCtx.createOscillator();
       osc1.type = 'sawtooth';
       osc1.frequency.setValueAtTime(freq, now);
 
       // 2nd harmonic for brightness
-      const osc2 = ctx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
       osc2.type = 'sine';
       osc2.frequency.setValueAtTime(freq * 2, now);
-      const osc2Gain = ctx.createGain();
+      const osc2Gain = audioCtx.createGain();
       osc2Gain.gain.setValueAtTime(0.3, now);
       osc2.connect(osc2Gain);
 
       // Sub harmonic for depth
-      const osc3 = ctx.createOscillator();
+      const osc3 = audioCtx.createOscillator();
       osc3.type = 'triangle';
       osc3.frequency.setValueAtTime(freq, now);
-      const osc3Gain = ctx.createGain();
+      const osc3Gain = audioCtx.createGain();
       osc3Gain.gain.setValueAtTime(0.2, now);
       osc3.connect(osc3Gain);
 
@@ -801,7 +842,7 @@
       osc2Gain.connect(filter);
       osc3Gain.connect(filter);
       filter.connect(masterGain);
-      masterGain.connect(ctx.destination);
+      masterGain.connect(audioCtx.destination);
 
       osc1.start(now);
       osc2.start(now);
@@ -810,28 +851,29 @@
       osc1.stop(now + 1.2);
       osc2.stop(now + 1.2);
       osc3.stop(now + 1.2);
-
-      // Trigger string physical vibration animation
-      itemEl.classList.remove('string-vibrating');
-      void itemEl.offsetWidth; // trigger reflow
-      itemEl.classList.add('string-vibrating');
-      setTimeout(() => itemEl.classList.remove('string-vibrating'), 380);
     }
 
     board.querySelectorAll('.violin-string-item').forEach((item) => {
       const freq = parseFloat(item.dataset.freq);
 
-      item.addEventListener('click', () => playNote(freq, item));
+      // Explicit clicks and taps are valid user gestures
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        playNote(freq, item);
+      });
+
+      item.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        playNote(freq, item);
+      }, { passive: false });
+
+      // Only play on mouseenter if user is actively holding down the mouse button (bowing across)
       item.addEventListener('mouseenter', (e) => {
-        // Play on hover if mouse is moving across
-        if (e.buttons > 0 || Math.random() < 0.5) {
+        if (e.buttons > 0 && audioUnlocked && audioCtx && audioCtx.state === 'running') {
           playNote(freq, item);
         }
       });
-      item.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        playNote(freq, item);
-      }, { passive: false });
     });
   }
 
