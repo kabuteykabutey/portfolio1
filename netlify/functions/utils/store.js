@@ -114,9 +114,11 @@ function getUnifiedStore(name) {
     async get(key, options) {
       try {
         const val = await blobsStore.get(key, options);
-        if (val !== undefined && val !== null) return val;
-        return await fallback.get(key, options);
+        // If Blobs is authoritative (reachable), trust its answer — even if null.
+        // Falling back to /tmp here would "resurrect" deleted entries.
+        return val ?? null;
       } catch (err) {
+        // Blobs unreachable → fall back to /tmp
         console.warn(`[Netlify Blobs ${name}] get() failed:`, err.message);
         return await fallback.get(key, options);
       }
@@ -131,15 +133,14 @@ function getUnifiedStore(name) {
       return true;
     },
     async delete(key) {
+      // Let Blobs delete throw — so callers know if it actually failed.
+      // The 500 path in the handler will surface this as a proper error.
+      await blobsStore.delete(key);
       try {
-        await blobsStore.delete(key);
-      } catch (err) {
-        console.warn(`[Netlify Blobs ${name}] delete() failed:`, err.message);
-      }
-      try {
+        // Best-effort: clean up the fallback /tmp file too (different Lambda container)
         await fallback.delete(key);
       } catch (e) {
-        // Fallback delete error
+        // Not critical — the Blobs delete already succeeded
       }
       return true;
     }

@@ -685,17 +685,48 @@
 
       list.querySelectorAll('.delete-entry-btn').forEach((btn) => {
         btn.addEventListener('click', async () => {
-          if (confirm('Delete this guestbook entry?')) {
-            const entryId = btn.dataset.id;
-            try {
-              await api('admin-guestbook-delete', {
-                method: 'DELETE',
-                body: JSON.stringify({ id: entryId }),
-              });
-              loadAdminGuestbook();
-              loadGuestbookEntries();
-            } catch (err) {
-              alert('Failed to delete: ' + err.message);
+          if (!confirm('Delete this guestbook entry? This cannot be undone.')) return;
+
+          const entryId = btn.dataset.id;
+          const card = btn.closest('.message-card');
+
+          // Show loading state on button
+          btn.disabled = true;
+          btn.textContent = 'Deleting…';
+
+          try {
+            await api('admin-guestbook-delete', {
+              method: 'DELETE',
+              body: JSON.stringify({ id: entryId }),
+            });
+
+            // Animate card out, then remove from DOM
+            if (card) {
+              card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+              card.style.opacity = '0';
+              card.style.transform = 'translateX(24px)';
+              setTimeout(() => {
+                card.remove();
+                // If no more cards, show empty state
+                if (!list.querySelector('.message-card')) {
+                  list.innerHTML = '<div class="empty-state">No guestbook entries.</div>';
+                }
+              }, 300);
+            }
+
+            // Refresh the public guestbook page (if open)
+            loadGuestbookEntries();
+          } catch (err) {
+            // Restore button
+            btn.disabled = false;
+            btn.textContent = 'Delete';
+
+            const msg = err.message || '';
+            if (msg.includes('401') || msg.toLowerCase().includes('unauthorized')) {
+              alert('Your session has expired. Please log in again.');
+              adminLogout();
+            } else {
+              alert('Failed to delete entry: ' + msg);
             }
           }
         });
