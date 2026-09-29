@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { getStore } = require('@netlify/blobs');
+const { getUnifiedStore } = require('./utils/store');
 
 function verifyToken(event) {
   const auth = event.headers.authorization || event.headers.Authorization || '';
@@ -38,7 +38,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const store = getStore('messages');
+    const store = getUnifiedStore('messages');
 
     // GET - List all messages
     if (event.httpMethod === 'GET') {

@@ -1,4 +1,4 @@
-const { getStore } = require('@netlify/blobs');
+const { getUnifiedStore } = require('./utils/store');
 
 exports.handler = async (event) => {
   const headers = {
@@ -56,7 +56,7 @@ exports.handler = async (event) => {
       read: false,
     };
 
-    const store = getStore('messages');
+    const store = getUnifiedStore('messages');
     await store.setJSON(id, entry);
 
     // Attempt email notification (non-blocking)

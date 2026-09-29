@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { getStore } = require('@netlify/blobs');
+const { getUnifiedStore } = require('./utils/store');
 
 function verifyToken(event) {
   const auth = event.headers.authorization || event.headers.Authorization || '';
@@ -53,8 +53,8 @@ exports.handler = async (event) => {
       };
     }
 
-    // Validate ID format
-    if (!/^entry_\d+_[a-z0-9]+$/.test(id)) {
+    // Validate ID format (allow entry_... or entry_ahuma_genesis)
+    if (!/^entry_[a-z0-9_]+$/i.test(id)) {
       return {
         statusCode: 400,
         headers,
@@ -62,7 +62,7 @@ exports.handler = async (event) => {
       };
     }
 
-    const store = getStore('guestbook');
+    const store = getUnifiedStore('guestbook');
     await store.delete(id);
 
     return {

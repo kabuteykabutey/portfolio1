@@ -1,4 +1,4 @@
-const { getStore } = require('@netlify/blobs');
+const { getUnifiedStore } = require('./utils/store');
 
 exports.handler = async (event) => {
   const headers = {
@@ -13,7 +13,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const store = getStore('guestbook');
+    const store = getUnifiedStore('guestbook');
 
     // GET - List all entries
     if (event.httpMethod === 'GET') {
