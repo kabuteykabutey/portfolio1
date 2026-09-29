@@ -85,8 +85,8 @@ exports.handler = async (event) => {
 async function sendNotificationEmail(entry) {
   const nodemailer = require('nodemailer');
 
-  const appPassword = process.env.GMAIL_APP_PASSWORD || 'wzaacvtbblzfokew';
-  const adminEmail = process.env.ADMIN_EMAIL || 'briankabutey10@gmail.com';
+  const appPassword = process.env.GMAIL_APP_PASSWORD;
+  const adminEmail = process.env.ADMIN_EMAIL;
 
   const transporter = nodemailer.createTransport({
     service: 'gmail',
