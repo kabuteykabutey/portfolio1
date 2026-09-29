@@ -8,7 +8,8 @@ function verifyToken(event) {
   if (!token) return null;
 
   try {
-    return jwt.verify(token, process.env.JWT_SECRET);
+    const jwtSecret = process.env.JWT_SECRET || '0e332368186d9d5a3630114d12bcd7184cd37713de05157a26ff827ead1e66d3';
+    return jwt.verify(token, jwtSecret);
   } catch {
     return null;
   }
@@ -52,16 +53,8 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Message is required.' }) };
     }
 
-    const adminEmail = process.env.ADMIN_EMAIL;
-    const appPassword = process.env.GMAIL_APP_PASSWORD;
-
-    if (!adminEmail || !appPassword) {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Email service not configured.' }),
-      };
-    }
+    const adminEmail = process.env.ADMIN_EMAIL || 'briankabutey10@gmail.com';
+    const appPassword = process.env.GMAIL_APP_PASSWORD || 'wzaacvtbblzfokew';
 
     const transporter = nodemailer.createTransport({
       service: 'gmail',

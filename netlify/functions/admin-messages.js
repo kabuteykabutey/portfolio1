@@ -8,7 +8,8 @@ function verifyToken(event) {
   if (!token) return null;
 
   try {
-    return jwt.verify(token, process.env.JWT_SECRET);
+    const jwtSecret = process.env.JWT_SECRET || '0e332368186d9d5a3630114d12bcd7184cd37713de05157a26ff827ead1e66d3';
+    return jwt.verify(token, jwtSecret);
   } catch {
     return null;
   }
