@@ -14,27 +14,27 @@
   let mouse = { x: -1000, y: -1000, active: false };
   let animationId;
 
-  // Configuration - Luminous and clearly visible connected network
+  // Configuration - Refined, subtle, and non-distracting constellation network
   const CONFIG = {
     particleCount: getParticleCount(),
-    particleRadius: 2.2,
-    particleColor: 'rgba(140, 175, 255, 0.85)',
-    connectionDistance: 145,
-    connectionColor: 'rgba(120, 160, 255, 0.35)',
-    repulsionRadius: 165,
-    repulsionForce: 9.5,
-    returnSpeed: 0.025,
+    particleRadius: 1.6,
+    particleColor: 'rgba(125, 155, 255, 0.55)',
+    connectionDistance: 125,
+    connectionColor: 'rgba(107, 138, 255, 0.16)',
+    repulsionRadius: 150,
+    repulsionForce: 8.5,
+    returnSpeed: 0.02,
     friction: 0.92,
-    drift: 0.2,
-    maxSpeed: 3.5,
+    drift: 0.16,
+    maxSpeed: 3,
   };
 
   function getParticleCount() {
     const w = window.innerWidth;
-    if (w < 480) return 55;
-    if (w < 768) return 85;
-    if (w < 1200) return 115;
-    return 145;
+    if (w < 480) return 40;
+    if (w < 768) return 65;
+    if (w < 1200) return 90;
+    return 105;
   }
 
   class Particle {
@@ -45,12 +45,12 @@
       this.baseY = this.y;
       this.vx = (Math.random() - 0.5) * CONFIG.drift;
       this.vy = (Math.random() - 0.5) * CONFIG.drift;
-      this.radius = CONFIG.particleRadius * (0.8 + Math.random() * 0.6);
-      this.opacity = 0.55 + Math.random() * 0.4;
+      this.radius = CONFIG.particleRadius * (0.7 + Math.random() * 0.6);
+      this.opacity = 0.3 + Math.random() * 0.35;
     }
 
     update() {
-      // Mouse repulsion - particles actively run away to open a clear path
+      // Mouse repulsion - particles gently part to open a path for the pointer
       if (mouse.active) {
         const dx = this.x - mouse.x;
         const dy = this.y - mouse.y;
@@ -99,10 +99,7 @@
       ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
       ctx.fillStyle = CONFIG.particleColor;
       ctx.globalAlpha = this.opacity;
-      ctx.shadowColor = 'rgba(107, 138, 255, 0.5)';
-      ctx.shadowBlur = 4;
       ctx.fill();
-      ctx.shadowBlur = 0;
       ctx.globalAlpha = 1;
     }
   }
@@ -144,8 +141,8 @@
           ctx.moveTo(particles[i].x, particles[i].y);
           ctx.lineTo(particles[j].x, particles[j].y);
           ctx.strokeStyle = CONFIG.connectionColor;
-          ctx.globalAlpha = ratio * 0.75;
-          ctx.lineWidth = 0.85;
+          ctx.globalAlpha = ratio * 0.45;
+          ctx.lineWidth = 0.6;
           ctx.stroke();
           ctx.globalAlpha = 1;
         }
