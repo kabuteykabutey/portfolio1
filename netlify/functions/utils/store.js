@@ -85,22 +85,34 @@ class FileMemoryStore {
 }
 
 function getUnifiedStore(name) {
-  // Check if Netlify Blobs can be instantiated without throwing
+  // Only attempt Netlify Blobs if context or explicit credentials are configured
+  const hasBlobsConfig = Boolean(
+    process.env.NETLIFY_BLOBS_CONTEXT || 
+    (process.env.NETLIFY_SITE_ID && (process.env.NETLIFY_AUTH_TOKEN || process.env.NETLIFY_TOKEN))
+  );
+
+  const fallback = new FileMemoryStore(name);
+
+  if (!hasBlobsConfig) {
+    return fallback;
+  }
+
   let blobsStore = null;
   try {
     const { getStore } = require('@netlify/blobs');
     blobsStore = getStore(name);
   } catch (err) {
-    // Expected when NETLIFY_BLOBS_CONTEXT is not provisioned
-    return new FileMemoryStore(name);
+    return fallback;
   }
 
-  // If getStore didn't throw, wrap operations with graceful fallback
-  const fallback = new FileMemoryStore(name);
   return {
     async list() {
       try {
-        return await blobsStore.list();
+        const res = await blobsStore.list();
+        if (res && Array.isArray(res.blobs)) {
+          return res;
+        }
+        return await fallback.list();
       } catch (err) {
         console.warn(`[Netlify Blobs ${name}] list() failed:`, err.message);
         return await fallback.list();
@@ -108,7 +120,9 @@ function getUnifiedStore(name) {
     },
     async get(key, options) {
       try {
-        return await blobsStore.get(key, options);
+        const val = await blobsStore.get(key, options);
+        if (val !== undefined && val !== null) return val;
+        return await fallback.get(key, options);
       } catch (err) {
         console.warn(`[Netlify Blobs ${name}] get() failed:`, err.message);
         return await fallback.get(key, options);
