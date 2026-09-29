@@ -1,0 +1,19 @@
+{
+  "name": "ahuma-portfolio",
+  "version": "1.0.0",
+  "description": "Portfolio for Brian Ahuma Kabutey",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'Static site - no build needed'",
+    "hash-password": "node scripts/hash-password.js"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^6.9.16"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.38.0"
+  }
+}
