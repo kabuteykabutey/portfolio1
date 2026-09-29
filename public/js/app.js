@@ -700,21 +700,42 @@
               body: JSON.stringify({ id: entryId }),
             });
 
-            // Animate card out, then remove from DOM
+            // Animate admin card out, then remove it
             if (card) {
               card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
               card.style.opacity = '0';
               card.style.transform = 'translateX(24px)';
               setTimeout(() => {
                 card.remove();
-                // If no more cards, show empty state
                 if (!list.querySelector('.message-card')) {
                   list.innerHTML = '<div class="empty-state">No guestbook entries.</div>';
                 }
               }, 300);
             }
 
-            // Refresh the public guestbook page (if open)
+            // Immediately remove the same entry from the public guestbook list too
+            const publicCard = document.querySelector(`#entries-list [data-id="${CSS.escape(entryId)}"]`);
+            if (publicCard) {
+              publicCard.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+              publicCard.style.opacity = '0';
+              publicCard.style.transform = 'translateX(24px)';
+              setTimeout(() => {
+                publicCard.remove();
+                // Update count / show empty state on public guestbook
+                const entriesList = document.getElementById('entries-list');
+                const countEl = document.getElementById('entries-count');
+                const emptyEl = document.getElementById('guestbook-empty');
+                if (entriesList && !entriesList.querySelector('.entry-card')) {
+                  if (emptyEl) emptyEl.style.display = 'block';
+                  if (countEl) countEl.textContent = '';
+                } else if (countEl) {
+                  const remaining = document.querySelectorAll('#entries-list .entry-card').length;
+                  countEl.textContent = `${remaining} signature${remaining !== 1 ? 's' : ''}`;
+                }
+              }, 300);
+            }
+
+            // Also do a fresh server fetch to stay in sync (non-blocking)
             loadGuestbookEntries();
           } catch (err) {
             // Restore button

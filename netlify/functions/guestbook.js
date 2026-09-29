@@ -6,7 +6,11 @@ exports.handler = async (event) => {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-CSRF-Token',
-    'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+    // Prevent browser, proxy, AND Netlify edge CDN from caching this response.
+    // Without 'private' and the Netlify-specific header, Netlify's edge may serve stale data.
+    'Cache-Control': 'no-cache, no-store, must-revalidate, private, max-age=0',
+    'Netlify-CDN-Cache-Control': 'no-store',
+    'Surrogate-Control': 'no-store',
     'Pragma': 'no-cache',
     'Expires': '0',
   };

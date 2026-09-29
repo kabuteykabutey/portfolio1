@@ -2,20 +2,20 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-// In-memory global store to survive warm Lambda invocations
-if (!global.__AHUMA_STORES__) {
-  global.__AHUMA_STORES__ = {};
-}
-
-// Initial guestbook entries so visitors see example signatures
+// Genesis entry shown as example before any real signatures exist.
+// Only used by the /tmp FileMemoryStore fallback (local dev / Blobs unavailable).
 const INITIAL_GUESTBOOK_ENTRIES = {
   entry_ahuma_genesis: {
     name: 'Brian Ahuma Kabutey',
-    signature: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 80"><path d="M30 45 Q 60 15 100 45 T 180 35 Q 220 65 270 30" fill="none" stroke="%2338bdf8" stroke-width="3" stroke-linecap="round"/><circle cx="275" cy="30" r="3" fill="%2338bdf8"/><text x="180" y="65" fill="%2394a3b8" font-family="sans-serif" font-size="12">Ahuma</text></svg>',
-    timestamp: new Date().toISOString()
-  }
+    signature:
+      'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 80"><path d="M30 45 Q 60 15 100 45 T 180 35 Q 220 65 270 30" fill="none" stroke="%2338bdf8" stroke-width="3" stroke-linecap="round"/><circle cx="275" cy="30" r="3" fill="%2338bdf8"/><text x="180" y="65" fill="%2394a3b8" font-family="sans-serif" font-size="12">Ahuma</text></svg>',
+    timestamp: new Date().toISOString(),
+  },
 };
 
+// ---------------------------------------------------------------------------
+// FileMemoryStore — per-container /tmp fallback for local dev
+// ---------------------------------------------------------------------------
 class FileMemoryStore {
   constructor(name) {
     this.name = name;
@@ -31,7 +31,7 @@ class FileMemoryStore {
     } catch (e) {
       console.warn(`[Store ${this.name}] Read error:`, e.message);
     }
-
+    // First access in this container — seed with defaults and persist
     const initial = this.name === 'guestbook' ? { ...INITIAL_GUESTBOOK_ENTRIES } : {};
     this._persist(initial);
     return initial;
@@ -47,17 +47,13 @@ class FileMemoryStore {
 
   async list() {
     const current = this._load();
-    const keys = Object.keys(current);
-    return {
-      blobs: keys.map((key) => ({ key }))
-    };
+    return { blobs: Object.keys(current).map((key) => ({ key })) };
   }
 
-  async get(key, options = {}) {
+  async get(key) {
     const current = this._load();
     const item = current[key];
-    if (item === undefined) return null;
-    return item;
+    return item !== undefined ? item : null;
   }
 
   async setJSON(key, value) {
@@ -77,73 +73,72 @@ class FileMemoryStore {
   }
 }
 
+// ---------------------------------------------------------------------------
+// getUnifiedStore — always try Netlify Blobs, fall back per-operation
+// ---------------------------------------------------------------------------
 function getUnifiedStore(name) {
-  // Only attempt Netlify Blobs if context or explicit credentials are configured
-  const hasBlobsConfig = Boolean(
-    process.env.NETLIFY_BLOBS_CONTEXT || 
-    (process.env.NETLIFY_SITE_ID && (process.env.NETLIFY_AUTH_TOKEN || process.env.NETLIFY_TOKEN))
-  );
-
   const fallback = new FileMemoryStore(name);
 
-  if (!hasBlobsConfig) {
-    return fallback;
-  }
-
+  // Attempt to get a Blobs store handle. This does NOT make a network call yet —
+  // failures only happen at request time. If the package itself is missing, fall back.
   let blobsStore = null;
   try {
     const { getStore } = require('@netlify/blobs');
     blobsStore = getStore(name);
-  } catch (err) {
+  } catch (_) {
+    console.warn('[Store] @netlify/blobs unavailable — using /tmp fallback');
     return fallback;
   }
 
   return {
+    // list(): Netlify Blobs is authoritative; /tmp only if Blobs is unreachable
     async list() {
       try {
         const res = await blobsStore.list();
-        if (res && Array.isArray(res.blobs)) {
-          return res;
-        }
+        if (res && Array.isArray(res.blobs)) return res;
         return await fallback.list();
       } catch (err) {
-        console.warn(`[Netlify Blobs ${name}] list() failed:`, err.message);
+        console.warn(`[Netlify Blobs ${name}] list() error:`, err.message);
         return await fallback.list();
       }
     },
+
+    // get(): If Blobs is reachable, its answer is final (null = deleted — don't
+    //         resurrect from /tmp). Fall back to /tmp only if Blobs is unreachable.
     async get(key, options) {
       try {
         const val = await blobsStore.get(key, options);
-        // If Blobs is authoritative (reachable), trust its answer — even if null.
-        // Falling back to /tmp here would "resurrect" deleted entries.
+        // Trust Blobs even when it returns null (key was deleted).
+        // Falling back to /tmp would "resurrect" deleted entries.
         return val ?? null;
       } catch (err) {
-        // Blobs unreachable → fall back to /tmp
-        console.warn(`[Netlify Blobs ${name}] get() failed:`, err.message);
+        console.warn(`[Netlify Blobs ${name}] get() error:`, err.message);
         return await fallback.get(key, options);
       }
     },
+
+    // setJSON(): write to Blobs; fall back to /tmp only if Blobs is unreachable
     async setJSON(key, value) {
       try {
         await blobsStore.setJSON(key, value);
       } catch (err) {
-        console.warn(`[Netlify Blobs ${name}] setJSON() failed:`, err.message);
+        console.warn(`[Netlify Blobs ${name}] setJSON() error:`, err.message);
         await fallback.setJSON(key, value);
       }
       return true;
     },
+
+    // delete(): propagate Blobs errors so the handler returns 500 instead of a
+    //           silent 200 when the entry was never actually removed.
     async delete(key) {
-      // Let Blobs delete throw — so callers know if it actually failed.
-      // The 500 path in the handler will surface this as a proper error.
-      await blobsStore.delete(key);
+      await blobsStore.delete(key); // throws → caller returns 500
       try {
-        // Best-effort: clean up the fallback /tmp file too (different Lambda container)
-        await fallback.delete(key);
-      } catch (e) {
-        // Not critical — the Blobs delete already succeeded
+        await fallback.delete(key); // best-effort /tmp cleanup
+      } catch (_) {
+        // Not critical — Blobs delete already succeeded
       }
       return true;
-    }
+    },
   };
 }
 
