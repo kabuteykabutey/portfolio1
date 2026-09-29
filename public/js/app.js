@@ -1292,6 +1292,7 @@
     }
 
     currentPage = initialPage;
+    window.scrollTo(0, 0);
 
     // Update nav
     document.querySelectorAll('.nav-link').forEach((link) => {
