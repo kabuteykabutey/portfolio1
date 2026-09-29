@@ -736,6 +736,418 @@
   }
 
   // ============================
+  // Violin Audio Synthesizer (Web Audio API)
+  // ============================
+  let audioCtx = null;
+
+  function initViolinAudio() {
+    const board = document.getElementById('violin-board');
+    if (!board) return;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+          audioCtx = new AudioContext();
+        }
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function playNote(freq, itemEl) {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+
+      // Master gain for this note
+      const masterGain = ctx.createGain();
+      masterGain.gain.setValueAtTime(0, now);
+      masterGain.gain.linearRampToValueAtTime(0.28, now + 0.02);
+      masterGain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+
+      // Lowpass filter modeling wood body resonance
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2200, now);
+      filter.Q.setValueAtTime(1.8, now);
+
+      // Fundamental harmonic (Sawtooth for warm string texture)
+      const osc1 = ctx.createOscillator();
+      osc1.type = 'sawtooth';
+      osc1.frequency.setValueAtTime(freq, now);
+
+      // 2nd harmonic for brightness
+      const osc2 = ctx.createOscillator();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(freq * 2, now);
+      const osc2Gain = ctx.createGain();
+      osc2Gain.gain.setValueAtTime(0.3, now);
+      osc2.connect(osc2Gain);
+
+      // Sub harmonic for depth
+      const osc3 = ctx.createOscillator();
+      osc3.type = 'triangle';
+      osc3.frequency.setValueAtTime(freq, now);
+      const osc3Gain = ctx.createGain();
+      osc3Gain.gain.setValueAtTime(0.2, now);
+      osc3.connect(osc3Gain);
+
+      // Connect graph
+      osc1.connect(filter);
+      osc2Gain.connect(filter);
+      osc3Gain.connect(filter);
+      filter.connect(masterGain);
+      masterGain.connect(ctx.destination);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc3.start(now);
+
+      osc1.stop(now + 1.2);
+      osc2.stop(now + 1.2);
+      osc3.stop(now + 1.2);
+
+      // Trigger string physical vibration animation
+      itemEl.classList.remove('string-vibrating');
+      void itemEl.offsetWidth; // trigger reflow
+      itemEl.classList.add('string-vibrating');
+      setTimeout(() => itemEl.classList.remove('string-vibrating'), 380);
+    }
+
+    board.querySelectorAll('.violin-string-item').forEach((item) => {
+      const freq = parseFloat(item.dataset.freq);
+
+      item.addEventListener('click', () => playNote(freq, item));
+      item.addEventListener('mouseenter', (e) => {
+        // Play on hover if mouse is moving across
+        if (e.buttons > 0 || Math.random() < 0.5) {
+          playNote(freq, item);
+        }
+      });
+      item.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        playNote(freq, item);
+      }, { passive: false });
+    });
+  }
+
+  // ============================
+  // GitHub Repositories Showcase
+  // ============================
+  const FALLBACK_REPOS = [
+    {
+      name: 'portfolio1',
+      description: 'Personal portfolio featuring bespoke architecture, native Netlify backend, freehand canvas guestbook, and interactive violin audio synthesis.',
+      language: 'JavaScript',
+      stars: 0,
+      forks: 0,
+      url: 'https://github.com/kabuteykabutey/portfolio1',
+      updated_at: '2026-09-29T08:33:00Z',
+    },
+    {
+      name: 'Ghana-Revenue-Taxing-System',
+      description: 'Algorithmic software solution modeling progressive taxation brackets, income deductions, and automated payroll calculations for Ghana.',
+      language: 'Python',
+      stars: 0,
+      forks: 0,
+      url: 'https://github.com/kabuteykabutey/Ghana-Revenue-Taxing-System',
+      updated_at: '2025-11-19T12:26:00Z',
+    },
+    {
+      name: 'Students-Registration-Form-SQL',
+      description: 'Structured relational SQL database schema and management system for student enrolments, course registrations, and academic tracking.',
+      language: 'SQL',
+      stars: 0,
+      forks: 0,
+      url: 'https://github.com/kabuteykabutey/Students-Registration-Form-SQL',
+      updated_at: '2025-11-29T08:45:00Z',
+    },
+    {
+      name: 'E-commerce-database-for-products',
+      description: 'Relational database schema modeling product inventories, customer transactions, order management, and catalog hierarchies in SQL.',
+      language: 'SQL',
+      stars: 0,
+      forks: 0,
+      url: 'https://github.com/kabuteykabutey/E-commerce-database-for-products',
+      updated_at: '2025-11-29T16:55:00Z',
+    },
+    {
+      name: 'roadside-rescue',
+      description: 'Automotive emergency roadside assistance web application built with TypeScript, modular services, and responsive customer dispatch views.',
+      language: 'TypeScript',
+      stars: 0,
+      forks: 0,
+      url: 'https://github.com/kabuteykabutey/roadside-rescue',
+      updated_at: '2026-01-17T10:22:00Z',
+    },
+    {
+      name: 'python_assignment',
+      description: 'Computer science algorithmic solutions, data structure implementations, and practical computational utilities in Python.',
+      language: 'Python',
+      stars: 0,
+      forks: 0,
+      url: 'https://github.com/kabuteykabutey/python_assignment',
+      updated_at: '2025-11-14T21:39:00Z',
+    },
+    {
+      name: 'Daily-updates',
+      description: 'Automated Python workflow script suite for recurring system notifications, log parsing, and scheduled updates.',
+      language: 'Python',
+      stars: 0,
+      forks: 0,
+      url: 'https://github.com/kabuteykabutey/Daily-updates',
+      updated_at: '2026-01-06T21:44:00Z',
+    },
+    {
+      name: 'changing-link-addresses-to-QR-codes',
+      description: 'Interactive client-side web utility converting dynamic web links and URLs into instantaneous, high-contrast QR matrix codes.',
+      language: 'CSS',
+      stars: 0,
+      forks: 0,
+      url: 'https://github.com/kabuteykabutey/changing-link-addresses-to-QR-codes',
+      updated_at: '2025-12-16T21:08:00Z',
+    },
+    {
+      name: 'Job-Listings',
+      description: 'Employment opportunity and job listing database interface with category filtering, indexing, and role requirements modeling.',
+      language: 'SQL',
+      stars: 0,
+      forks: 0,
+      url: 'https://github.com/kabuteykabutey/Job-Listings',
+      updated_at: '2025-10-05T22:54:00Z',
+    },
+    {
+      name: 'portfolio',
+      description: 'Original portfolio exploration and web interface designs highlighting frontend fundamentals.',
+      language: 'JavaScript',
+      stars: 0,
+      forks: 0,
+      url: 'https://github.com/kabuteykabutey/portfolio',
+      updated_at: '2026-09-29T07:17:00Z',
+    },
+    {
+      name: 'special-octo-guide',
+      description: 'Frontend experimentation and web development learning sandbox demonstrating semantic HTML and layout strategies.',
+      language: 'HTML',
+      stars: 0,
+      forks: 0,
+      url: 'https://github.com/kabuteykabutey/special-octo-guide',
+      updated_at: '2026-08-26T22:17:00Z',
+    },
+    {
+      name: 'my-portfolio',
+      description: 'Foundational developer profile site establishing clean semantic structure and responsive web layouts.',
+      language: 'HTML',
+      stars: 0,
+      forks: 0,
+      url: 'https://github.com/kabuteykabutey/my-portfolio',
+      updated_at: '2026-01-17T10:45:00Z',
+    },
+  ];
+
+  const LANG_COLORS = {
+    Python: '#3572A5',
+    JavaScript: '#f1e05a',
+    TypeScript: '#3178c6',
+    SQL: '#e38c00',
+    HTML: '#e34c26',
+    CSS: '#563d7c',
+  };
+
+  let allRepos = [...FALLBACK_REPOS];
+  let currentFilter = 'all';
+  let searchQuery = '';
+
+  function initGitHubRepos() {
+    const grid = document.getElementById('repos-grid');
+    const searchInput = document.getElementById('repo-search');
+    const filterContainer = document.getElementById('repo-filters');
+    const exploreBtn = document.getElementById('btn-explore-repos');
+
+    if (!grid) return;
+
+    // Smooth scroll from hero button to repos showcase
+    if (exploreBtn) {
+      exploreBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const section = document.getElementById('github-showcase');
+        if (section) {
+          section.scrollIntoView({ behavior: 'smooth' });
+        }
+      });
+    }
+
+    // Render immediately using fallback data
+    renderRepos();
+
+    // Fetch live repos from GitHub API
+    fetchGitHubRepos();
+
+    // Search filter
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        searchQuery = e.target.value.toLowerCase().trim();
+        renderRepos();
+      });
+    }
+
+    // Category pills
+    if (filterContainer) {
+      filterContainer.querySelectorAll('.filter-pill').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          filterContainer.querySelectorAll('.filter-pill').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentFilter = btn.dataset.filter;
+          renderRepos();
+        });
+      });
+    }
+  }
+
+  async function fetchGitHubRepos() {
+    try {
+      const res = await fetch('https://api.github.com/users/kabuteykabutey/repos?sort=updated&per_page=100');
+      if (!res.ok) return;
+
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) return;
+
+      // Merge live stats (stars, forks, updated_at) with curated descriptions
+      const fallbackMap = new Map(FALLBACK_REPOS.map((r) => [r.name.toLowerCase(), r]));
+
+      allRepos = data.map((item) => {
+        const fb = fallbackMap.get(item.name.toLowerCase());
+        // Detect SQL language for database repos
+        let detectedLang = item.language;
+        if (!detectedLang && (item.name.includes('SQL') || item.name.includes('database') || item.name.includes('Listings'))) {
+          detectedLang = 'SQL';
+        }
+        if (!detectedLang && fb) {
+          detectedLang = fb.language;
+        }
+
+        return {
+          name: item.name,
+          description: item.description || (fb ? fb.description : 'Open source project by Ahuma.'),
+          language: detectedLang || 'Code',
+          stars: item.stargazers_count || 0,
+          forks: item.forks_count || 0,
+          url: item.html_url,
+          updated_at: item.updated_at,
+        };
+      });
+
+      // Update stat count in hero and filter badge
+      const countEl = document.getElementById('stat-repos-count');
+      const countAll = document.getElementById('count-all');
+      if (countEl) countEl.textContent = allRepos.length;
+      if (countAll) countAll.textContent = allRepos.length;
+
+      renderRepos();
+    } catch {
+      // Gracefully continue using fallback
+    }
+  }
+
+  function renderRepos() {
+    const grid = document.getElementById('repos-grid');
+    if (!grid) return;
+
+    let filtered = allRepos;
+
+    // Apply category filter
+    if (currentFilter !== 'all') {
+      if (currentFilter === 'SQL') {
+        filtered = filtered.filter((r) => r.language === 'SQL' || r.name.toLowerCase().includes('sql') || r.name.toLowerCase().includes('database'));
+      } else if (currentFilter === 'JavaScript') {
+        filtered = filtered.filter((r) => r.language === 'JavaScript' || r.language === 'TypeScript');
+      } else if (currentFilter === 'HTML') {
+        filtered = filtered.filter((r) => r.language === 'HTML' || r.language === 'CSS');
+      } else {
+        filtered = filtered.filter((r) => (r.language || '').toLowerCase() === currentFilter.toLowerCase());
+      }
+    }
+
+    // Apply search query
+    if (searchQuery) {
+      filtered = filtered.filter((r) =>
+        r.name.toLowerCase().includes(searchQuery) ||
+        (r.description && r.description.toLowerCase().includes(searchQuery)) ||
+        (r.language && r.language.toLowerCase().includes(searchQuery))
+      );
+    }
+
+    if (filtered.length === 0) {
+      grid.innerHTML = `
+        <div class="repo-empty-match">
+          <p>No repositories found matching "<strong>${Security.escapeHtml(searchQuery)}</strong>".</p>
+        </div>
+      `;
+      return;
+    }
+
+    grid.innerHTML = filtered.map((repo, idx) => {
+      const color = LANG_COLORS[repo.language] || '#6b8aff';
+      const cleanName = Security.escapeHtml(repo.name);
+      const cleanDesc = Security.escapeHtml(repo.description || 'Open source project repository.');
+      const cleanLang = Security.escapeHtml(repo.language || 'Code');
+      const dateText = formatDate(repo.updated_at);
+
+      return `
+        <article class="repo-card" style="animation: fadeUp 0.4s var(--ease-out) ${idx * 0.04}s forwards;">
+          <div>
+            <div class="repo-top">
+              <div class="repo-folder-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
+              </div>
+              <a href="${Security.escapeHtml(repo.url)}" target="_blank" rel="noopener noreferrer" class="repo-external-link" title="Open ${cleanName} on GitHub" aria-label="Open ${cleanName} repository on GitHub">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M7 17L17 7M17 7H7M17 7v10"/>
+                </svg>
+              </a>
+            </div>
+            <h3 class="repo-title">
+              <a href="${Security.escapeHtml(repo.url)}" target="_blank" rel="noopener noreferrer">${cleanName}</a>
+            </h3>
+            <p class="repo-desc">${cleanDesc}</p>
+          </div>
+
+          <div class="repo-footer">
+            <div class="repo-lang">
+              <span class="repo-lang-dot" style="background-color: ${color};"></span>
+              <span>${cleanLang}</span>
+            </div>
+            <div class="repo-meta">
+              ${repo.stars > 0 ? `
+                <span class="repo-meta-item" title="${repo.stars} star${repo.stars !== 1 ? 's' : ''}">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  ${repo.stars}
+                </span>` : ''}
+              ${repo.forks > 0 ? `
+                <span class="repo-meta-item" title="${repo.forks} fork${repo.forks !== 1 ? 's' : ''}">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/>
+                    <path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9"/><path d="M12 12v3"/>
+                  </svg>
+                  ${repo.forks}
+                </span>` : ''}
+              <span class="repo-date">${dateText}</span>
+            </div>
+          </div>
+        </article>
+      `;
+    }).join('');
+  }
+
+  // ============================
   // Initialize
   // ============================
   function init() {
@@ -762,6 +1174,8 @@
     initSignaturePad();
     initContactForm();
     initAdmin();
+    initViolinAudio();
+    initGitHubRepos();
 
     if (initialPage === 'guestbook') loadGuestbookEntries();
   }
