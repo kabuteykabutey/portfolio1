@@ -1003,6 +1003,42 @@
   let allRepos = [...FALLBACK_REPOS];
   let currentFilter = 'all';
   let searchQuery = '';
+  let pollInterval = null;
+
+  function calculateTechStacks(repos) {
+    // Base stacks Ahuma codes in
+    const stacks = new Set(['Python', 'SQL', 'JavaScript', 'React', 'HTML', 'CSS']);
+
+    repos.forEach((repo) => {
+      if (repo.language && repo.language !== 'Code') {
+        stacks.add(repo.language);
+      }
+      // Inspect repo names and descriptions for additional tech stacks
+      const text = `${repo.name} ${repo.description || ''}`.toLowerCase();
+      if (text.includes('react')) stacks.add('React');
+      if (text.includes('typescript')) stacks.add('TypeScript');
+      if (text.includes('sql') || text.includes('database')) stacks.add('SQL');
+      if (text.includes('node')) stacks.add('Node.js');
+    });
+
+    return stacks.size;
+  }
+
+  function updateMetrics(repos, userProfile) {
+    const totalRepos = (userProfile && typeof userProfile.public_repos === 'number' && userProfile.public_repos >= repos.length)
+      ? userProfile.public_repos
+      : repos.length;
+
+    const countEl = document.getElementById('stat-repos-count');
+    const countAll = document.getElementById('count-all');
+    const stacksEl = document.getElementById('stat-stacks-count');
+
+    if (countEl) countEl.textContent = totalRepos;
+    if (countAll) countAll.textContent = totalRepos;
+
+    const totalStacks = calculateTechStacks(repos);
+    if (stacksEl) stacksEl.textContent = `${totalStacks}+`;
+  }
 
   function initGitHubRepos() {
     const grid = document.getElementById('repos-grid');
@@ -1011,6 +1047,18 @@
     const exploreBtn = document.getElementById('btn-explore-repos');
 
     if (!grid) return;
+
+    // Load any cached data from localStorage for instant 0ms render
+    try {
+      const cached = localStorage.getItem('ahuma_github_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed.repos) && parsed.repos.length > 0) {
+          allRepos = parsed.repos;
+          updateMetrics(allRepos, parsed.user);
+        }
+      }
+    } catch {}
 
     // Smooth scroll from hero button to repos showcase
     if (exploreBtn) {
@@ -1023,11 +1071,24 @@
       });
     }
 
-    // Render immediately using fallback data
+    // Render initial repos and initial metrics
     renderRepos();
+    updateMetrics(allRepos, null);
 
-    // Fetch live repos from GitHub API
+    // Fetch live repos from GitHub API immediately
     fetchGitHubRepos();
+
+    // Constantly keep updating: poll GitHub API every 45 seconds
+    if (!pollInterval) {
+      pollInterval = setInterval(fetchGitHubRepos, 45000);
+    }
+
+    // Also fetch immediately when user returns to the tab
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        fetchGitHubRepos();
+      }
+    });
 
     // Search filter
     if (searchInput) {
@@ -1052,46 +1113,63 @@
 
   async function fetchGitHubRepos() {
     try {
-      const res = await fetch('https://api.github.com/users/kabuteykabutey/repos?sort=updated&per_page=100');
-      if (!res.ok) return;
+      // Fetch both repositories and user profile in parallel
+      const [reposRes, userRes] = await Promise.allSettled([
+        fetch('https://api.github.com/users/kabuteykabutey/repos?sort=updated&per_page=100'),
+        fetch('https://api.github.com/users/kabuteykabutey')
+      ]);
 
-      const data = await res.json();
-      if (!Array.isArray(data) || data.length === 0) return;
+      let userProfile = null;
+      if (userRes.status === 'fulfilled' && userRes.value.ok) {
+        userProfile = await userRes.value.json();
+      }
 
-      // Merge live stats (stars, forks, updated_at) with curated descriptions
-      const fallbackMap = new Map(FALLBACK_REPOS.map((r) => [r.name.toLowerCase(), r]));
+      if (reposRes.status === 'fulfilled' && reposRes.value.ok) {
+        const data = await reposRes.value.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const fallbackMap = new Map(FALLBACK_REPOS.map((r) => [r.name.toLowerCase(), r]));
 
-      allRepos = data.map((item) => {
-        const fb = fallbackMap.get(item.name.toLowerCase());
-        // Detect SQL language for database repos
-        let detectedLang = item.language;
-        if (!detectedLang && (item.name.includes('SQL') || item.name.includes('database') || item.name.includes('Listings'))) {
-          detectedLang = 'SQL';
+          allRepos = data.map((item) => {
+            const fb = fallbackMap.get(item.name.toLowerCase());
+            let detectedLang = item.language;
+            if (!detectedLang && (item.name.includes('SQL') || item.name.includes('database') || item.name.includes('Listings'))) {
+              detectedLang = 'SQL';
+            }
+            if (!detectedLang && fb) {
+              detectedLang = fb.language;
+            }
+
+            return {
+              name: item.name,
+              description: item.description || (fb ? fb.description : 'Open source project by Ahuma.'),
+              language: detectedLang || 'Code',
+              stars: item.stargazers_count || 0,
+              forks: item.forks_count || 0,
+              url: item.html_url,
+              updated_at: item.updated_at,
+            };
+          });
+
+          // Cache fresh data in localStorage
+          try {
+            localStorage.setItem('ahuma_github_cache', JSON.stringify({
+              repos: allRepos,
+              user: userProfile,
+              time: Date.now()
+            }));
+          } catch {}
+
+          // Update metrics (repo count and tech stacks count)
+          updateMetrics(allRepos, userProfile);
+
+          // Re-render
+          renderRepos();
         }
-        if (!detectedLang && fb) {
-          detectedLang = fb.language;
-        }
-
-        return {
-          name: item.name,
-          description: item.description || (fb ? fb.description : 'Open source project by Ahuma.'),
-          language: detectedLang || 'Code',
-          stars: item.stargazers_count || 0,
-          forks: item.forks_count || 0,
-          url: item.html_url,
-          updated_at: item.updated_at,
-        };
-      });
-
-      // Update stat count in hero and filter badge
-      const countEl = document.getElementById('stat-repos-count');
-      const countAll = document.getElementById('count-all');
-      if (countEl) countEl.textContent = allRepos.length;
-      if (countAll) countAll.textContent = allRepos.length;
-
-      renderRepos();
+      } else if (userProfile) {
+        updateMetrics(allRepos, userProfile);
+      }
     } catch {
-      // Gracefully continue using fallback
+      // Gracefully continue using current state
     }
   }
 
