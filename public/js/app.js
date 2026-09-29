@@ -816,49 +816,48 @@
   // Violin Audio Synthesizer (Web Audio API)
   // ============================
   let audioCtx = null;
-  let audioUnlocked = false;
 
   function initViolinAudio() {
     const board = document.getElementById('violin-board');
     if (!board) return;
 
-    function unlockAudio() {
-      if (!audioCtx) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (AudioContext) {
-          audioCtx = new AudioContext();
+    function getAudioContext() {
+      try {
+        if (!audioCtx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) {
+            audioCtx = new AudioContextClass();
+          }
         }
-      }
-      if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume().then(() => {
-          audioUnlocked = true;
-        }).catch(() => {});
-      } else if (audioCtx && audioCtx.state === 'running') {
-        audioUnlocked = true;
+        return audioCtx;
+      } catch {
+        return null;
       }
     }
 
-    // Unlock audio context on first explicit user interaction
-    window.addEventListener('pointerdown', unlockAudio, { once: true, passive: true });
-    window.addEventListener('keydown', unlockAudio, { once: true, passive: true });
-
     function playNote(freq, itemEl) {
       try {
-        unlockAudio();
-        if (!audioCtx) return;
-
-        // Animate the physical string regardless of audio state
+        // Animate the physical string visually
         itemEl.classList.remove('string-vibrating');
         void itemEl.offsetWidth; // trigger reflow
         itemEl.classList.add('string-vibrating');
         setTimeout(() => itemEl.classList.remove('string-vibrating'), 380);
 
-        if (audioCtx.state !== 'running') {
-          audioCtx.resume().then(() => playOscillators(freq)).catch(() => {});
+        const ctx = getAudioContext();
+        if (!ctx) return;
+
+        if (ctx.state === 'suspended') {
+          ctx.resume().then(() => {
+            if (ctx.state === 'running') {
+              playOscillators(freq);
+            }
+          }).catch(() => {});
           return;
         }
 
-        playOscillators(freq);
+        if (ctx.state === 'running') {
+          playOscillators(freq);
+        }
       } catch {
         // Silently handle any browser audio constraints
       }
@@ -920,21 +919,15 @@
     board.querySelectorAll('.violin-string-item').forEach((item) => {
       const freq = parseFloat(item.dataset.freq);
 
-      // Explicit clicks and taps are valid user gestures
+      // Standard click is recognized as a valid user gesture across desktop and mobile
       item.addEventListener('click', (e) => {
         e.stopPropagation();
         playNote(freq, item);
       });
 
-      item.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        playNote(freq, item);
-      }, { passive: false });
-
-      // Only play on mouseenter if user is actively holding down the mouse button (bowing across)
+      // Bowing action when dragging across with mouse held down
       item.addEventListener('mouseenter', (e) => {
-        if (e.buttons > 0 && audioUnlocked && audioCtx && audioCtx.state === 'running') {
+        if (e.buttons > 0 && audioCtx && audioCtx.state === 'running') {
           playNote(freq, item);
         }
       });
