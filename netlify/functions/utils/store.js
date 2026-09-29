@@ -20,26 +20,19 @@ class FileMemoryStore {
   constructor(name) {
     this.name = name;
     this.filePath = path.join(os.tmpdir(), `ahuma_store_${name}.json`);
-    this.data = this._load();
   }
 
   _load() {
     try {
-      if (global.__AHUMA_STORES__[this.name] && Object.keys(global.__AHUMA_STORES__[this.name]).length > 0) {
-        return global.__AHUMA_STORES__[this.name];
-      }
       if (fs.existsSync(this.filePath)) {
         const raw = fs.readFileSync(this.filePath, 'utf8');
-        const parsed = JSON.parse(raw);
-        global.__AHUMA_STORES__[this.name] = parsed;
-        return parsed;
+        return JSON.parse(raw);
       }
     } catch (e) {
       console.warn(`[Store ${this.name}] Read error:`, e.message);
     }
 
     const initial = this.name === 'guestbook' ? { ...INITIAL_GUESTBOOK_ENTRIES } : {};
-    global.__AHUMA_STORES__[this.name] = initial;
     this._persist(initial);
     return initial;
   }
@@ -68,18 +61,18 @@ class FileMemoryStore {
   }
 
   async setJSON(key, value) {
-    this.data = this._load();
-    this.data[key] = value;
-    global.__AHUMA_STORES__[this.name] = this.data;
-    this._persist(this.data);
+    const current = this._load();
+    current[key] = value;
+    this._persist(current);
     return true;
   }
 
   async delete(key) {
-    this.data = this._load();
-    delete this.data[key];
-    global.__AHUMA_STORES__[this.name] = this.data;
-    this._persist(this.data);
+    const current = this._load();
+    if (key in current) {
+      delete current[key];
+      this._persist(current);
+    }
     return true;
   }
 }
@@ -142,7 +135,11 @@ function getUnifiedStore(name) {
         await blobsStore.delete(key);
       } catch (err) {
         console.warn(`[Netlify Blobs ${name}] delete() failed:`, err.message);
+      }
+      try {
         await fallback.delete(key);
+      } catch (e) {
+        // Fallback delete error
       }
       return true;
     }

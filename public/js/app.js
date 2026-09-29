@@ -74,7 +74,12 @@
       config.headers = { ...defaults.headers, ...options.headers };
     }
 
-    const response = await fetch(`/api/${endpoint}`, config);
+    // Bypass browser HTTP caching for GET requests
+    const isGet = !config.method || config.method.toUpperCase() === 'GET';
+    const separator = endpoint.includes('?') ? '&' : '?';
+    const url = isGet ? `/api/${endpoint}${separator}_t=${Date.now()}` : `/api/${endpoint}`;
+
+    const response = await fetch(url, { ...config, cache: 'no-store' });
     const data = await response.json();
 
     if (!response.ok) {
@@ -318,6 +323,10 @@
 
       if (loading) loading.style.display = 'none';
 
+      // Always clear existing cards first so deletions immediately reflect
+      const existingCards = list.querySelectorAll('.entry-card');
+      existingCards.forEach((card) => card.remove());
+
       if (entries.length === 0) {
         if (empty) empty.style.display = 'block';
         if (countEl) countEl.textContent = '';
@@ -327,15 +336,12 @@
       if (empty) empty.style.display = 'none';
       if (countEl) countEl.textContent = `${entries.length} signature${entries.length !== 1 ? 's' : ''}`;
 
-      // Clear existing entries (keep loading/empty divs)
-      const existingCards = list.querySelectorAll('.entry-card');
-      existingCards.forEach((card) => card.remove());
-
       entries
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
         .forEach((entry, index) => {
           const card = document.createElement('div');
           card.className = 'entry-card';
+          if (entry.id) card.dataset.id = entry.id;
           card.style.animationDelay = `${index * 0.05}s`;
           card.innerHTML = `
             <div class="entry-signature">
@@ -680,12 +686,14 @@
       list.querySelectorAll('.delete-entry-btn').forEach((btn) => {
         btn.addEventListener('click', async () => {
           if (confirm('Delete this guestbook entry?')) {
+            const entryId = btn.dataset.id;
             try {
               await api('admin-guestbook-delete', {
                 method: 'DELETE',
-                body: JSON.stringify({ id: btn.dataset.id }),
+                body: JSON.stringify({ id: entryId }),
               });
               loadAdminGuestbook();
+              loadGuestbookEntries();
             } catch (err) {
               alert('Failed to delete: ' + err.message);
             }
