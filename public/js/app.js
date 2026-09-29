@@ -121,14 +121,7 @@
       currentPage = page;
 
       // Close mobile nav
-      const toggle = document.getElementById('nav-toggle');
-      const navLinks = document.getElementById('nav-links');
-      if (toggle && navLinks) {
-        toggle.classList.remove('open');
-        navLinks.classList.remove('open');
-        toggle.setAttribute('aria-expanded', 'false');
-        document.body.style.overflow = '';
-      }
+      closeMobileNav();
 
       // Load page-specific data
       if (page === 'guestbook') loadGuestbookEntries();
@@ -161,26 +154,89 @@
   // Initialize on load
   window.addEventListener('hashchange', handleRoute);
 
+  // Mobile nav helpers
+  function closeMobileNav() {
+    const toggle = document.getElementById('nav-toggle');
+    const navLinks = document.getElementById('nav-links');
+    const backdrop = document.getElementById('nav-backdrop');
+    if (toggle) {
+      toggle.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+    if (navLinks) {
+      navLinks.classList.remove('open');
+    }
+    if (backdrop) {
+      backdrop.classList.remove('open');
+    }
+    document.body.style.overflow = '';
+  }
+
+  function toggleMobileNav() {
+    const toggle = document.getElementById('nav-toggle');
+    const navLinks = document.getElementById('nav-links');
+    const backdrop = document.getElementById('nav-backdrop');
+    if (!toggle || !navLinks) return;
+    const isOpen = toggle.classList.toggle('open');
+    navLinks.classList.toggle('open', isOpen);
+    if (backdrop) {
+      backdrop.classList.toggle('open', isOpen);
+    }
+    toggle.setAttribute('aria-expanded', isOpen);
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+  }
+
   // Handle nav clicks
   document.querySelectorAll('[data-page]').forEach((el) => {
     el.addEventListener('click', (e) => {
       e.preventDefault();
       const page = el.dataset.page;
-      window.location.hash = page;
+      closeMobileNav();
+      const current = (window.location.hash || '').replace(/^#/, '') || 'home';
+      if (current === page) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        window.location.hash = page;
+      }
     });
   });
 
   // Mobile nav toggle
   const navToggle = document.getElementById('nav-toggle');
-  const navLinks = document.getElementById('nav-links');
-  if (navToggle && navLinks) {
-    navToggle.addEventListener('click', () => {
-      const isOpen = navToggle.classList.toggle('open');
-      navLinks.classList.toggle('open');
-      navToggle.setAttribute('aria-expanded', isOpen);
-      document.body.style.overflow = isOpen ? 'hidden' : '';
+  if (navToggle) {
+    navToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleMobileNav();
     });
   }
+
+  // Mobile nav backdrop dismiss
+  const navBackdrop = document.getElementById('nav-backdrop');
+  if (navBackdrop) {
+    navBackdrop.addEventListener('click', closeMobileNav);
+  }
+
+  // Close nav on click outside
+  document.addEventListener('click', (e) => {
+    const mainNav = document.getElementById('main-nav');
+    if (mainNav && !mainNav.contains(e.target)) {
+      closeMobileNav();
+    }
+  });
+
+  // Close nav on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeMobileNav();
+    }
+  });
+
+  // Close nav when window resized above mobile breakpoint
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) {
+      closeMobileNav();
+    }
+  });
 
   // ============================
   // Signature Pad
