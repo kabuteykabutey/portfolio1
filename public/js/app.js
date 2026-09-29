@@ -1275,6 +1275,14 @@
     const hash = window.location.hash.slice(1) || 'home';
     const initialPage = pages.includes(hash) ? hash : 'home';
 
+    // Deactivate all pages first
+    pages.forEach((p) => {
+      const el = document.getElementById(`page-${p}`);
+      if (el) {
+        el.classList.remove('active', 'visible');
+      }
+    });
+
     const section = document.getElementById(`page-${initialPage}`);
     if (section) {
       section.classList.add('active');
