@@ -6,7 +6,11 @@
  */
 const bcrypt = require('bcryptjs');
 
-const password = 'fuck@uall';
+const password = process.argv[2];
+if (!password) {
+  console.log('Usage: node scripts/hash-password.js <your-password>');
+  process.exit(1);
+}
 const saltRounds = 12;
 
 bcrypt.hash(password, saltRounds, (err, hash) => {
@@ -16,7 +20,6 @@ bcrypt.hash(password, saltRounds, (err, hash) => {
   }
 
   console.log('\n=== Admin Password Hash ===\n');
-  console.log('Password:', password);
   console.log('Hash:', hash);
   console.log('\nSet this as ADMIN_PASSWORD_HASH in your Netlify environment variables.\n');
 });

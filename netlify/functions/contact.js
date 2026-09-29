@@ -85,8 +85,13 @@ exports.handler = async (event) => {
 async function sendNotificationEmail(entry) {
   const nodemailer = require('nodemailer');
 
-  const appPassword = process.env.GMAIL_APP_PASSWORD || 'wzaacvtbblzfokew';
+  const appPassword = process.env.GMAIL_APP_PASSWORD;
   const adminEmail = process.env.ADMIN_EMAIL || 'briankabutey10@gmail.com';
+
+  if (!appPassword) {
+    console.log('GMAIL_APP_PASSWORD is not configured. Skipping email notification.');
+    return;
+  }
 
   const transporter = nodemailer.createTransport({
     service: 'gmail',

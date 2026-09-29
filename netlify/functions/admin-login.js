@@ -30,8 +30,17 @@ exports.handler = async (event) => {
     }
 
     const adminEmail = process.env.ADMIN_EMAIL || 'briankabutey10@gmail.com';
-    const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH || '$2a$12$HNliePMgWEKAV2Wa7728G.BoPp8h6mqKTXXLl0IZGNsYDqstIP9ni';
-    const jwtSecret = process.env.JWT_SECRET || '0e332368186d9d5a3630114d12bcd7184cd37713de05157a26ff827ead1e66d3';
+    const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH;
+    const jwtSecret = process.env.JWT_SECRET;
+
+    if (!adminPasswordHash || !jwtSecret) {
+      console.error('Server configuration error: ADMIN_PASSWORD_HASH or JWT_SECRET is missing.');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error.' }),
+      };
+    }
 
     // Validate credentials
     const emailMatch = email.toLowerCase().trim() === adminEmail.toLowerCase().trim();

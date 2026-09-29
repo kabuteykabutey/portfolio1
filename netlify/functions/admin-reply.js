@@ -5,11 +5,10 @@ function verifyToken(event) {
   const auth = event.headers.authorization || event.headers.Authorization || '';
   const token = auth.replace('Bearer ', '');
 
-  if (!token) return null;
+  if (!token || !process.env.JWT_SECRET) return null;
 
   try {
-    const jwtSecret = process.env.JWT_SECRET || '0e332368186d9d5a3630114d12bcd7184cd37713de05157a26ff827ead1e66d3';
-    return jwt.verify(token, jwtSecret);
+    return jwt.verify(token, process.env.JWT_SECRET);
   } catch {
     return null;
   }
@@ -54,7 +53,16 @@ exports.handler = async (event) => {
     }
 
     const adminEmail = process.env.ADMIN_EMAIL || 'briankabutey10@gmail.com';
-    const appPassword = process.env.GMAIL_APP_PASSWORD || 'wzaacvtbblzfokew';
+    const appPassword = process.env.GMAIL_APP_PASSWORD;
+
+    if (!appPassword) {
+      console.error('Email service error: GMAIL_APP_PASSWORD is not configured.');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Email service not configured.' }),
+      };
+    }
 
     const transporter = nodemailer.createTransport({
       service: 'gmail',
